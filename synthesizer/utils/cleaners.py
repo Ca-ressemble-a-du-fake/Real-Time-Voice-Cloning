@@ -13,6 +13,7 @@ hyperparameter. Some cleaners are English-specific. You"ll typically want to use
 import re
 from unidecode import unidecode
 from .numbers import normalize_numbers
+from .abbreviations import abbreviations_en, abbreviations_fr
 
 # Regular expression matching whitespace:
 _whitespace_re = re.compile(r"\s+")
@@ -40,10 +41,19 @@ _abbreviations = [(re.compile("\\b%s\\." % x[0], re.IGNORECASE), x[1]) for x in 
 ]]
 
 
-def expand_abbreviations(text):
-  for regex, replacement in _abbreviations:
-    text = re.sub(regex, replacement, text)
-  return text
+#def expand_abbreviations(text):
+#  for regex, replacement in _abbreviations:
+#    text = re.sub(regex, replacement, text)
+#  return text
+
+def expand_abbreviations(text, lang="en"):
+    if lang == "en":
+        _abbreviations = abbreviations_en
+    elif lang == "fr":
+        _abbreviations = abbreviations_fr
+    for regex, replacement in _abbreviations:
+        text = re.sub(regex, replacement, text)
+    return text
 
 
 def expand_numbers(text):
@@ -61,6 +71,22 @@ def collapse_whitespace(text):
 
 def convert_to_ascii(text):
   return unidecode(text)
+
+def remove_aux_symbols(text):
+    text = re.sub(r"[\<\>\(\)\[\]\"]+", "", text)
+    return text
+
+def replace_symbols(text, lang="en"):
+    text = text.replace(";", ",")
+    text = text.replace("-", " ")
+    text = text.replace(":", ",")
+    if lang == "en":
+        text = text.replace("&", " and ")
+    elif lang == "fr":
+        text = text.replace("&", " et ")
+    elif lang == "pt":
+        text = text.replace("&", " e ")
+    return text
 
 
 def basic_cleaners(text):
@@ -86,3 +112,12 @@ def english_cleaners(text):
   text = expand_abbreviations(text)
   text = collapse_whitespace(text)
   return text
+
+def french_cleaners(text):
+    """Pipeline for French text. """
+    text = expand_abbreviations(text, lang="fr")
+    text = lowercase(text)
+    text = replace_symbols(text, lang="fr")
+    text = remove_aux_symbols(text)
+    text = collapse_whitespace(text)
+    return text
