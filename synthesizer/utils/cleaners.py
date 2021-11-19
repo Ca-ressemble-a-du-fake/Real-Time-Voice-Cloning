@@ -8,6 +8,7 @@ hyperparameter. Some cleaners are English-specific. You"ll typically want to use
      the Unidecode library (https://pypi.python.org/pypi/Unidecode)
   3. "basic_cleaners" if you do not want to transliterate (in this case, you should also update
      the symbols in symbols.py to match your data).
+  4. "french_cleaners" is a basic cleaner that does not expand numbers (TBD)   
 """
 
 import re
