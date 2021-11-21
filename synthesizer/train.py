@@ -184,7 +184,8 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
 
                 loss = m1_loss + m2_loss + stop_loss
 
-                optimizer.zero_grad()
+                # Following https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html?highlight=device#use-parameter-grad-none-instead-of-model-zero-grad-or-optimizer-zero-grad
+                optimizer.zero_grad(set_to_none=True)
                 loss.backward()
 
                 if hparams.tts_clip_grad_norm is not None:
