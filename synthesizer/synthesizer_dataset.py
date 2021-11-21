@@ -73,10 +73,7 @@ def collate_synthesizer(batch, r, hparams):
     mel = np.stack(mel)
 
     # Speaker embedding (SV2TTS)
-    start = timer()
     embeds = np.array([x[2] for x in batch])
-    end = timer()
-    print("Time to generate embeds array : " + str(end - start) + "s") # Time in seconds
     
 
     # Index (for vocoder preprocessing)
@@ -87,10 +84,7 @@ def collate_synthesizer(batch, r, hparams):
     chars = torch.tensor(chars).long()
     mel = torch.tensor(mel)
     
-    start = timer()
     embeds = torch.tensor(embeds)
-    end = timer()
-    print("Time to generate embeds tensor from array : " + str(end - start) + "s") # Time in seconds
 
     return chars, mel, embeds, indices
 
