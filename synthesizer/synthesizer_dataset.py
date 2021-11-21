@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 from pathlib import Path
 from synthesizer.utils.text import text_to_sequence
+from timeit import default_timer as timer
 
 
 class SynthesizerDataset(Dataset):
@@ -35,8 +36,6 @@ class SynthesizerDataset(Dataset):
         # Load the embed
         embed = np.load(embed_path)
         
-        print("Embed is of type " + str(type(embed)))
-
         # Get the text and clean it
         text = text_to_sequence(self.samples_texts[index], self.hparams.tts_cleaner_names)
         
@@ -74,18 +73,11 @@ def collate_synthesizer(batch, r, hparams):
     mel = np.stack(mel)
 
     # Speaker embedding (SV2TTS)
-    embeds = [x[2] for x in batch]
+    start = timer()
+    embeds = np.array([x[2] for x in batch])
+    end = timer()
+    print("Time to generate embeds array : " + str(end - start) + "s") # Time in seconds
     
-    print("Embeds is of type " + str(type(embeds)))
-    print("Batch is of type " + str(type(batch)))
-    
-    print("Batch is made of")
-    print(str(batch))
-    
-    print("Embeds is made of")
-    print(str(embeds))
-
-
 
     # Index (for vocoder preprocessing)
     indices = [x[3] for x in batch]
@@ -94,7 +86,11 @@ def collate_synthesizer(batch, r, hparams):
     # Convert all to tensor
     chars = torch.tensor(chars).long()
     mel = torch.tensor(mel)
+    
+    start = timer()
     embeds = torch.tensor(embeds)
+    end = timer()
+    print("Time to generate embeds tensor from array : " + str(end - start) + "s") # Time in seconds
 
     return chars, mel, embeds, indices
 
