@@ -25,7 +25,7 @@ def time_string():
 
 # Preallocates memory for better performances 
 # see https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html?highlight=device#pre-allocate-memory-in-case-of-variable-input-length
-def preallocate_memory(input_chars_max_length: int):
+def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hparams):
     
     print("Preallocating memory for better performance with max length of " + str(input_chars_max_length))
     
@@ -131,7 +131,7 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                      speaker_embedding_size=hparams.speaker_embedding_size).to(device)
     
     # Preallocate memory
-    preallocate_memory(208)
+    preallocate_memory(208, device, 1, hparams)
     print("Moving on to actual training")
 
     # Initialize the optimizer
