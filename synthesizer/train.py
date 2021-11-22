@@ -23,6 +23,53 @@ def np_now(x: torch.Tensor): return x.detach().cpu().numpy()
 def time_string():
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
+# Preallocates memory for better performances 
+# see https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html?highlight=device#pre-allocate-memory-in-case-of-variable-input-length
+def preallocate_memory(input_chars_max_length: int):
+    
+    print("Preallocating memory for better performance with max length of " + str(input_chars_max_length))
+    
+    # 1. Generate a batch of input
+    texts = torch.randint(len(symbols), (batch_size, input_chars_max_length))  # replace 200 with desired max length
+    mels = torch.rand((batch_size, hparams.num_mels, hparams.max_mel_frames))
+    embeds = torch.rand((batch_size, hparams.speaker_embedding_size))
+    
+    print("Executing forward and backward pass")
+    # 2. Execute a forward and a backward pass with the generated batch
+    with torch.no_grad():
+        # Generate stop tokens for training
+        stop = torch.ones(mels.shape[0], mels.shape[2])
+        for j, k in enumerate(idx):
+            stop[j, :int(dataset.metadata[k][4])-1] = 0
+
+        texts = texts.to(device)
+        mels = mels.to(device)
+        embeds = embeds.to(device)
+        stop = stop.to(device)
+
+        # Forward pass
+        # Parallelize model onto GPUS using workaround due to python bug
+        if device.type == "cuda" and torch.cuda.device_count() > 1:
+            m1_hat, m2_hat, attention, stop_pred = data_parallel_workaround(model, texts,
+                                                                            mels, embeds)
+        else:
+            m1_hat, m2_hat, attention, stop_pred = model(texts, mels, embeds)
+
+        # Backward pass
+        m1_loss = F.mse_loss(m1_hat, mels) + F.l1_loss(m1_hat, mels)
+        m2_loss = F.mse_loss(m2_hat, mels)
+        stop_loss = F.binary_cross_entropy(stop_pred, stop)
+
+        loss = m1_loss + m2_loss + stop_loss
+
+        model.zero_grad(set_to_none=True)
+        loss.backward()
+        
+    print("Zeroing out gradients")
+    # 3. Zero out gradients
+    model.zero_grad(set_to_none=True)
+
+
 def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
          backup_every: int, force_restart:bool, hparams):
 
@@ -82,6 +129,10 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                      dropout=hparams.tts_dropout,
                      stop_threshold=hparams.tts_stop_threshold,
                      speaker_embedding_size=hparams.speaker_embedding_size).to(device)
+    
+    # Preallocate memory
+    preallocate_memory(208)
+    print("Moving on to actual training")
 
     # Initialize the optimizer
     optimizer = optim.Adam(model.parameters())
