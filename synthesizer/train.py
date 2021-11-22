@@ -16,6 +16,8 @@ from pathlib import Path
 import sys
 import time
 import platform
+import torch_xla
+import torch_xla.core.xla_model as xm
 
 
 def np_now(x: torch.Tensor): return x.detach().cpu().numpy()
@@ -63,7 +65,9 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
             if batch_size % torch.cuda.device_count() != 0:
                 raise ValueError("`batch_size` must be evenly divisible by n_gpus!")
     else:
-        device = torch.device("cpu")
+        #device = torch.device("cpu")
+        # Using TPU
+        device = xm.xla_device()
     print("Using device:", device)
 
     # Instantiate Tacotron Model
@@ -194,6 +198,9 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                         print("grad_norm was NaN!")
 
                 optimizer.step()
+                
+                # TPU specific
+                xm.mark_step()
 
                 time_window.append(time.time() - start_time)
                 loss_window.append(loss.item())
