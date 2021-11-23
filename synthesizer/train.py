@@ -30,38 +30,37 @@ def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hpa
     print("Preallocating memory for better performance with max length of " + str(input_chars_max_length))
     
     # 1. Generate a batch of input
-    texts = torch.randint(len(symbols), (batch_size, input_chars_max_length), requires_grad=True)  # replace 200 with desired max length
-    mels = torch.rand((batch_size, hparams.num_mels, hparams.max_mel_frames), requires_grad=True)
-    embeds = torch.rand((batch_size, hparams.speaker_embedding_size),requires_grad=True)
+    texts = torch.randint(len(symbols), (batch_size, input_chars_max_length))  # replace 200 with desired max length
+    mels = torch.rand((batch_size, hparams.num_mels, hparams.max_mel_frames))
+    embeds = torch.rand((batch_size, hparams.speaker_embedding_size))
     
     print("Executing forward and backward pass")
     # 2. Execute a forward and a backward pass with the generated batch
-    with torch.no_grad():
-        # Generate stop tokens for training
-        stop = torch.ones(batch_size, hparams.max_mel_frames)
+    # Generate stop tokens for training
+    stop = torch.ones(batch_size, hparams.max_mel_frames)
 
-        texts = texts.to(device)
-        mels = mels.to(device)
-        embeds = embeds.to(device)
-        stop = stop.to(device)
+    texts = texts.to(device)
+    mels = mels.to(device)
+    embeds = embeds.to(device)
+    stop = stop.to(device)
 
-        # Forward pass
-        # Parallelize model onto GPUS using workaround due to python bug
-        if device.type == "cuda" and torch.cuda.device_count() > 1:
-            m1_hat, m2_hat, attention, stop_pred = data_parallel_workaround(model, texts,
-                                                                            mels, embeds)
-        else:
-            m1_hat, m2_hat, attention, stop_pred = model(texts, mels, embeds)
+    # Forward pass
+    # Parallelize model onto GPUS using workaround due to python bug
+    if device.type == "cuda" and torch.cuda.device_count() > 1:
+        m1_hat, m2_hat, attention, stop_pred = data_parallel_workaround(model, texts,
+                                                                        mels, embeds)
+    else:
+        m1_hat, m2_hat, attention, stop_pred = model(texts, mels, embeds)
 
-        # Backward pass
-        m1_loss = F.mse_loss(m1_hat, mels) + F.l1_loss(m1_hat, mels)
-        m2_loss = F.mse_loss(m2_hat, mels)
-        stop_loss = F.binary_cross_entropy(stop_pred, stop)
+    # Backward pass
+    m1_loss = F.mse_loss(m1_hat, mels) + F.l1_loss(m1_hat, mels)
+    m2_loss = F.mse_loss(m2_hat, mels)
+    stop_loss = F.binary_cross_entropy(stop_pred, stop)
 
-        loss = m1_loss + m2_loss + stop_loss
+    loss = m1_loss + m2_loss + stop_loss
 
-        model.zero_grad(set_to_none=True)
-        loss.backward()
+    model.zero_grad(set_to_none=True)
+    loss.backward()
         
     print("Zeroing out gradients")
     # 3. Zero out gradients
