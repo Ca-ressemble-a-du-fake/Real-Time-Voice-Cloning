@@ -30,17 +30,15 @@ def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hpa
     print("Preallocating memory for better performance with max length of " + str(input_chars_max_length))
     
     # 1. Generate a batch of input
-    texts = torch.randint(len(symbols), (batch_size, input_chars_max_length))  # replace 200 with desired max length
-    mels = torch.rand((batch_size, hparams.num_mels, hparams.max_mel_frames))
-    embeds = torch.rand((batch_size, hparams.speaker_embedding_size))
+    texts = torch.randint(len(symbols), (batch_size, input_chars_max_length), requires_grad=True)  # replace 200 with desired max length
+    mels = torch.rand((batch_size, hparams.num_mels, hparams.max_mel_frames), requires_grad=True)
+    embeds = torch.rand((batch_size, hparams.speaker_embedding_size),requires_grad=True)
     
     print("Executing forward and backward pass")
     # 2. Execute a forward and a backward pass with the generated batch
     with torch.no_grad():
         # Generate stop tokens for training
-        stop = torch.ones(mels.shape[0], mels.shape[2])
-        for j, k in enumerate(idx):
-            stop[j, :int(dataset.metadata[k][4])-1] = 0
+        torch.ones(batch_size, hparams.max_mel_frames)
 
         texts = texts.to(device)
         mels = mels.to(device)
