@@ -23,6 +23,20 @@ def np_now(x: torch.Tensor): return x.detach().cpu().numpy()
 def time_string():
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
+# Compute the maximum length of input text (training text)
+def findMaxLengthFromTrainingText(pathToTrainTxtFile : str):
+    
+    print("Retrieving max length from input " + pathToTrainTxtFile)
+    
+    # Longest line is like audio-neut_book_s05_0240.npy|mel-neut_book_s05_0240.npy|embed-neut_book_s05_0240.npy|175200|877|J’avais bien entendu parler
+    longestLine = max(open(pathToTrainTxtFile, 'r'), key=len)
+    # Longest input is the actual longest text
+    longestInput = longestLine[::-1].split("|")[0]
+    maxLength = len(longestInput)
+    
+    print("Input with maximum length is " + longestInput + " (length = " + maxLength + ")")
+    
+
 # Preallocates memory for better performances 
 # see https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html?highlight=device#pre-allocate-memory-in-case-of-variable-input-length
 def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hparams, model):
@@ -128,7 +142,7 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                      speaker_embedding_size=hparams.speaker_embedding_size).to(device)
     
     # Preallocate memory
-    preallocate_memory(208, device, 1, hparams, model)
+    preallocate_memory(findMaxLengthFromTrainingText(metadata_fpath)), device, 1, hparams, model)
     print("Moving on to actual training")
 
     # Initialize the optimizer
