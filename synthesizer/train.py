@@ -23,32 +23,35 @@ def np_now(x: torch.Tensor): return x.detach().cpu().numpy()
 def time_string():
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
-# Compute the maximum length of input text (training text)
+# Compute the maximum length of input text (training text) with the following assumption:
+# the longest line contains the longest text input
 def findMaxLengthFromTrainingText(pathToTrainTxtFile : str):
-    
-    print("Retrieving max length from input " + pathToTrainTxtFile)
-    
+        
     # Longest line is like audio-neut_book_s05_0240.npy|mel-neut_book_s05_0240.npy|embed-neut_book_s05_0240.npy|175200|877|J’avais bien entendu parler
     longestLine = max(open(pathToTrainTxtFile, 'r'), key=len)
     # Longest input is the actual longest text
-    longestInput = longestLine[::-1].split("|")[0]
+    longestInput = longestLine[::-1].split("|")[0][::-1]
     maxLength = len(longestInput)
     
-    print("Input with maximum length is " + longestInput + " (length = " + maxLength + ")")
+    print("\nMaximum input length (" + str(maxLength) + ") found for input: "  + longestInput )
+    # We return this max length
+    return maxLength
     
 
 # Preallocates memory for better performances 
 # see https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html?highlight=device#pre-allocate-memory-in-case-of-variable-input-length
-def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hparams, model):
+def preallocate_memory(pathToTrainTxtFile: str, device, batch_size: int, hparams, model):
     
-    print("Preallocating memory for better performance with max length of " + str(input_chars_max_length))
+
+    print("\nPreallocating memory for better performance")
+    input_chars_max_length = findMaxLengthFromTrainingText(pathToTrainTxtFile)
+
     
     # 1. Generate a batch of input
     texts = torch.randint(len(symbols), (batch_size, input_chars_max_length))  # replace 200 with desired max length
     mels = torch.rand((batch_size, hparams.num_mels, hparams.max_mel_frames))
     embeds = torch.rand((batch_size, hparams.speaker_embedding_size))
     
-    print("Executing forward and backward pass")
     # 2. Execute a forward and a backward pass with the generated batch
     # Generate stop tokens for training
     stop = torch.ones(batch_size, hparams.max_mel_frames)
@@ -76,7 +79,6 @@ def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hpa
     model.zero_grad(set_to_none=True)
     loss.backward()
         
-    print("Zeroing out gradients")
     # 3. Zero out gradients
     model.zero_grad(set_to_none=True)
 
@@ -142,7 +144,7 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                      speaker_embedding_size=hparams.speaker_embedding_size).to(device)
     
     # Preallocate memory
-    preallocate_memory(findMaxLengthFromTrainingText(metadata_fpath)), device, 1, hparams, model)
+    preallocate_memory(metadata_fpath, device, 1, hparams, model)
     print("Moving on to actual training")
 
     # Initialize the optimizer
