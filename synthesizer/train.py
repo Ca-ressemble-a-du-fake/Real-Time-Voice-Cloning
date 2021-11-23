@@ -25,7 +25,7 @@ def time_string():
 
 # Preallocates memory for better performances 
 # see https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html?highlight=device#pre-allocate-memory-in-case-of-variable-input-length
-def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hparams):
+def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hparams, model):
     
     print("Preallocating memory for better performance with max length of " + str(input_chars_max_length))
     
@@ -38,7 +38,7 @@ def preallocate_memory(input_chars_max_length: int, device, batch_size: int, hpa
     # 2. Execute a forward and a backward pass with the generated batch
     with torch.no_grad():
         # Generate stop tokens for training
-        torch.ones(batch_size, hparams.max_mel_frames)
+        stop = torch.ones(batch_size, hparams.max_mel_frames)
 
         texts = texts.to(device)
         mels = mels.to(device)
@@ -129,7 +129,7 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                      speaker_embedding_size=hparams.speaker_embedding_size).to(device)
     
     # Preallocate memory
-    preallocate_memory(208, device, 1, hparams)
+    preallocate_memory(208, device, 1, hparams, model)
     print("Moving on to actual training")
 
     # Initialize the optimizer
