@@ -3,11 +3,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import pytorch_lightning as pl
 from pathlib import Path
 from typing import Union
 
 
-class HighwayNetwork(nn.Module):
+
+class HighwayNetwork(pl.LightningModule):
     def __init__(self, size):
         super().__init__()
         self.W1 = nn.Linear(size, size)
@@ -166,7 +168,7 @@ class CBHG(nn.Module):
         to improve efficiency and avoid PyTorch yelling at us."""
         [m.flatten_parameters() for m in self._to_flatten]
 
-class PreNet(nn.Module):
+class PreNet(pl.LightningModule):
     def __init__(self, in_dims, fc1_dims=256, fc2_dims=128, dropout=0.5):
         super().__init__()
         self.fc1 = nn.Linear(in_dims, fc1_dims)
@@ -183,7 +185,7 @@ class PreNet(nn.Module):
         return x
 
 
-class Attention(nn.Module):
+class Attention(pl.LightningModule):
     def __init__(self, attn_dims):
         super().__init__()
         self.W = nn.Linear(attn_dims, attn_dims, bias=False)
@@ -202,7 +204,7 @@ class Attention(nn.Module):
         return scores.transpose(1, 2)
 
 
-class LSA(nn.Module):
+class LSA(pl.LightningModule):
     def __init__(self, attn_dim, kernel_size=31, filters=32):
         super().__init__()
         self.conv = nn.Conv1d(1, filters, padding=(kernel_size - 1) // 2, kernel_size=kernel_size, bias=True)
@@ -242,7 +244,7 @@ class LSA(nn.Module):
         return scores.unsqueeze(-1).transpose(1, 2)
 
 
-class Decoder(nn.Module):
+class Decoder(pl.LightningModule):
     # Class variable because its value doesn't change between classes
     # yet ought to be scoped by class because its a property of a Decoder
     max_r = 20
@@ -325,7 +327,7 @@ class Decoder(nn.Module):
         return mels, scores, hidden_states, cell_states, context_vec, stop_tokens
 
 
-class Tacotron(nn.Module):
+class Tacotron(pl.LightningModule):
     def __init__(self, embed_dims, num_chars, encoder_dims, decoder_dims, n_mels, 
                  fft_bins, postnet_dims, encoder_K, lstm_dims, postnet_K, num_highways,
                  dropout, stop_threshold, speaker_embedding_size):
