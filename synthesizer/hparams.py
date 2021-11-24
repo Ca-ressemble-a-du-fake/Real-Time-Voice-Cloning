@@ -49,6 +49,8 @@ hparams = HParams(
                                                     # frame that has all values < -3.4
 
         ### Tacotron Training
+        # See here for a guide on choosing the values for RNN 
+        # https://docs.nvidia.com/deeplearning/performance/dl-performance-recurrent/index.html
         tts_schedule = [(7,  1e-3,  20_000,  64),   # Progressive training schedule
                         (7,  5e-4,  40_000,  64),   # (r, lr, step, batch_size)
                         (7,  2e-4,  80_000,  64),   #
