@@ -106,7 +106,8 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
 
 
     # Lightning additions
-    trainer = pl.Trainer(gpus=1, precision=16)    
+    trainer = pl.Trainer(default_root_dir=model_dir,
+        gpus=1, precision=16)    
     trainer.fit(model)
 
 
