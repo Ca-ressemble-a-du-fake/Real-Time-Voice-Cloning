@@ -1,11 +1,15 @@
 import os
 import numpy as np
+from synthesizer.synthesizer_dataset import SynthesizerDataset, collate_synthesizer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 from pathlib import Path
 from typing import Union
+from torch.utils.data import DataLoader
+import platform
+import torchvision 
 
 
 
@@ -330,7 +334,7 @@ class Decoder(pl.LightningModule):
 class Tacotron(pl.LightningModule):
     def __init__(self, embed_dims, num_chars, encoder_dims, decoder_dims, n_mels, 
                  fft_bins, postnet_dims, encoder_K, lstm_dims, postnet_K, num_highways,
-                 dropout, stop_threshold, speaker_embedding_size):
+                 dropout, stop_threshold, speaker_embedding_size, syn_dir,hparams):
         super().__init__()
         self.n_mels = n_mels
         self.lstm_dims = lstm_dims
@@ -351,6 +355,17 @@ class Tacotron(pl.LightningModule):
 
         self.register_buffer("step", torch.zeros(1, dtype=torch.long))
         self.register_buffer("stop_threshold", torch.tensor(stop_threshold, dtype=torch.float32))
+
+        # Initialize the dataset  
+        self.hparams2 = hparams
+        self.r = hparams.tts_schedule[0][0]
+        self.batch_size = hparams.tts_schedule[0][3]
+        metadata_fpath = syn_dir.joinpath("train.txt")
+        mel_dir = syn_dir.joinpath("mels")
+        embed_dir = syn_dir.joinpath("embeds")
+        # Lightning suggests to use a number of workers equal to the available CPUs
+        self.num_workers = len(os.sched_getaffinity(0))
+        self.dataset = SynthesizerDataset(metadata_fpath, mel_dir, embed_dir, hparams)
 
     @property
     def r(self):
@@ -519,3 +534,85 @@ class Tacotron(pl.LightningModule):
         if print_out:
             print("Trainable Parameters: %.3fM" % parameters)
         return parameters
+
+    # Lightning additions
+
+    def training_step(self, batch, batch_idx):
+
+        texts, mels, embeds, idx = batch
+
+        # Generate stop tokens for training
+        stop = torch.ones(mels.shape[0], mels.shape[2])
+        for j, k in enumerate(idx):
+            stop[j, :int(self.dataset.metadata[k][4])-1] = 0
+
+        # Forward pass
+        m1_hat, m2_hat, attention, stop_pred = self(texts, mels, embeds)
+
+        # Backward pass
+        m1_loss = F.mse_loss(m1_hat, mels) + F.l1_loss(m1_hat, mels)
+        m2_loss = F.mse_loss(m2_hat, mels)
+        stop_loss = F.binary_cross_entropy(stop_pred, stop)
+
+        loss = m1_loss + m2_loss + stop_loss
+
+        log = {'train_loss' : loss.detach()}
+
+        return {'loss' : loss, 'log' : log}
+
+    def validation_step(self, batch, batch_idx):
+
+        texts, mels, embeds, idx = batch
+
+        # Generate stop tokens for training
+        stop = torch.ones(mels.shape[0], mels.shape[2])
+        for j, k in enumerate(idx):
+            stop[j, :int(self.dataset.metadata[k][4])-1] = 0
+
+        # Forward pass
+        m1_hat, m2_hat, attention, stop_pred = self(texts, mels, embeds)
+
+        # Backward pass
+        m1_loss = F.mse_loss(m1_hat, mels) + F.l1_loss(m1_hat, mels)
+        m2_loss = F.mse_loss(m2_hat, mels)
+        stop_loss = F.binary_cross_entropy(stop_pred, stop)
+
+        val_loss = m1_loss + m2_loss + stop_loss
+
+        return {'val_loss' : val_loss, 'm1_hat' : m1_hat, 'm2_hat' : m2_hat}
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters())
+
+    def train_dataloader(self):
+        
+        train_loader = DataLoader(self.dataset,
+                                 collate_fn=lambda batch: collate_synthesizer(batch, self.r, self.hparams2),
+                                 batch_size=self.batch_size,
+                                 num_workers=self.num_workers if platform.system() != "Windows" else 0,
+                                 shuffle=True,
+                                 pin_memory=True)
+
+        return train_loader
+
+    def val_dataloader(self):
+
+        val_loader = DataLoader(self.dataset,
+                            batch_size=1,
+                            num_workers=self.num_workers if platform.system() != "Windows" else 0,
+                            pin_memory=True)
+
+        return val_loader    
+
+    def validation_epoch_end(self, val_step_outputs):
+    
+        val_loss = torch.stack([out['val_loss'] for out in val_step_outputs]).mean()
+        m1_hat = val_step_outputs[-1]['m1_hat']
+        m2_hat = val_step_outputs[-1]['m2_hat']
+
+        grid = torchvision.utils.make_grid([m1_hat, m2_hat]) 
+        self.logger.experiment.add_image('images', grid, 0)
+
+
+        log = {'avg_val_loss' : val_loss}
+        return {'log': log, 'val_loss' : log}
