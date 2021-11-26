@@ -356,9 +356,10 @@ class Tacotron(pl.LightningModule):
         self.register_buffer("step", torch.zeros(1, dtype=torch.long))
         self.register_buffer("stop_threshold", torch.tensor(stop_threshold, dtype=torch.float32))
 
-        # Initialize the dataset  
+        # Initialize the dataset
+        # self.hparams already exists as import. Don't know if we can use it even though user has overriden those parameters via cmd line args. So we copy the passed in hparams.  
         self.hparams2 = hparams
-        self.r = hparams.tts_schedule[0][0]
+        self.reduction_factor = hparams.tts_schedule[0][0]
         self.batch_size = hparams.tts_schedule[0][3]
         metadata_fpath = syn_dir.joinpath("train.txt")
         mel_dir = syn_dir.joinpath("mels")
@@ -542,7 +543,7 @@ class Tacotron(pl.LightningModule):
         texts, mels, embeds, idx = batch
 
         # Generate stop tokens for training
-        stop = torch.ones(mels.shape[0], mels.shape[2])
+        stop = torch.ones(mels.shape[0], mels.shape[2], device=self.device)
         for j, k in enumerate(idx):
             stop[j, :int(self.dataset.metadata[k][4])-1] = 0
 
@@ -565,7 +566,7 @@ class Tacotron(pl.LightningModule):
         texts, mels, embeds, idx = batch
 
         # Generate stop tokens for training
-        stop = torch.ones(mels.shape[0], mels.shape[2])
+        stop = torch.ones(mels.shape[0], mels.shape[2], device=self.device)
         for j, k in enumerate(idx):
             stop[j, :int(self.dataset.metadata[k][4])-1] = 0
 
@@ -587,7 +588,7 @@ class Tacotron(pl.LightningModule):
     def train_dataloader(self):
         
         train_loader = DataLoader(self.dataset,
-                                 collate_fn=lambda batch: collate_synthesizer(batch, self.r, self.hparams2),
+                                 collate_fn=lambda batch: collate_synthesizer(batch, self.reduction_factor, self.hparams2),
                                  batch_size=self.batch_size,
                                  num_workers=self.num_workers if platform.system() != "Windows" else 0,
                                  shuffle=True,
