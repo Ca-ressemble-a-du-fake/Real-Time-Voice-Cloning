@@ -545,7 +545,7 @@ class Tacotron(pl.LightningModule):
             print("Trainable Parameters: %.3fM" % parameters)
         return parameters
 
-    def np_now(self, x: torch.Tensor): return x.detach().numpy()
+    def np_now(self, x: torch.Tensor): return x.detach().cpu().numpy()
 
 
     def time_string(self):
