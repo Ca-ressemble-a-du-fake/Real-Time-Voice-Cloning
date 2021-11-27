@@ -49,7 +49,7 @@ hparams = HParams(
                                                     # frame that has all values < -3.4
 
         ### Tacotron Training
-        tts_schedule = [(2,  1e-3,  20_000,  12),   # Progressive training schedule
+        tts_schedule = [(7,  1e-3,  20_000,  32),   # Progressive training schedule
                         (2,  5e-4,  40_000,  12),   # (r, lr, step, batch_size)
                         (2,  2e-4,  80_000,  12),   #
                         (2,  1e-4, 160_000,  12),   # r = reduction factor (# of mel frames
