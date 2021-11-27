@@ -78,7 +78,11 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                      stop_threshold=hparams.tts_stop_threshold,
                      speaker_embedding_size=hparams.speaker_embedding_size,
                      syn_dir=syn_dir,
-                     hparams=hparams)
+                     hparams=hparams,
+                     plot_dir=plot_dir, 
+                     mel_output_dir=mel_output_dir, 
+                     wav_dir=wav_dir
+                     )
                      
 
 
@@ -105,10 +109,13 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
 
 
 
-    # Lightning additions 
+    # Lightning additions
     trainer = pl.Trainer(default_root_dir=model_dir, 
-                         gpus=1,
-                         #precision=16,
-                         fast_dev_run=True, 
-                         log_every_n_steps=1)
+    #gpus=1, 
+    #precision=16,
+    fast_dev_run=True, 
+    log_every_n_steps=1)
+    
     trainer.fit(model)
+
+
