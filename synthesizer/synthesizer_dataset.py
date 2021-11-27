@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 from pathlib import Path
 from synthesizer.utils.text import text_to_sequence
+from timeit import default_timer as timer
 
 
 class SynthesizerDataset(Dataset):
@@ -34,7 +35,7 @@ class SynthesizerDataset(Dataset):
         
         # Load the embed
         embed = np.load(embed_path)
-
+        
         # Get the text and clean it
         text = text_to_sequence(self.samples_texts[index], self.hparams.tts_cleaner_names)
         
@@ -72,7 +73,8 @@ def collate_synthesizer(batch, r, hparams):
     mel = np.stack(mel)
 
     # Speaker embedding (SV2TTS)
-    embeds = [x[2] for x in batch]
+    embeds = np.array([x[2] for x in batch])
+    
 
     # Index (for vocoder preprocessing)
     indices = [x[3] for x in batch]
@@ -81,7 +83,8 @@ def collate_synthesizer(batch, r, hparams):
     # Convert all to tensor
     chars = torch.tensor(chars).long()
     mel = torch.tensor(mel)
-    embeds = torch.tensor(np.array(embeds))
+    
+    embeds = torch.tensor(embeds)
 
     return chars, mel, embeds, indices
 

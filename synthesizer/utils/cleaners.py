@@ -14,7 +14,6 @@ hyperparameter. Some cleaners are English-specific. You"ll typically want to use
 import re
 from unidecode import unidecode
 from .numbers import normalize_numbers
-from .abbreviations import abbreviations_en, abbreviations_fr
 
 # Regular expression matching whitespace:
 _whitespace_re = re.compile(r"\s+")
@@ -116,7 +115,7 @@ def english_cleaners(text):
 
 def french_cleaners(text):
     """Pipeline for French text. """
-    text = expand_abbreviations(text, lang="fr")
+    #text = expand_abbreviations(text, lang="fr")
     text = lowercase(text)
     text = replace_symbols(text, lang="fr")
     text = remove_aux_symbols(text)

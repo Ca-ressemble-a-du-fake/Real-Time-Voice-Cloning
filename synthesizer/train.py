@@ -23,6 +23,66 @@ def np_now(x: torch.Tensor): return x.detach().cpu().numpy()
 def time_string():
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
+# Compute the maximum length of input text (training text) with the following assumption:
+# the longest line contains the longest text input
+def findMaxLengthFromTrainingText(pathToTrainTxtFile : str):
+        
+    # Longest line is like audio-neut_book_s05_0240.npy|mel-neut_book_s05_0240.npy|embed-neut_book_s05_0240.npy|175200|877|J’avais bien entendu parler
+    longestLine = max(open(pathToTrainTxtFile, 'r'), key=len)
+    # Longest input is the actual longest text
+    longestInput = longestLine[::-1].split("|")[0][::-1]
+    maxLength = len(longestInput)
+    
+    print("\nMaximum input length (" + str(maxLength) + ") found for input: "  + longestInput )
+    # We return this max length
+    return maxLength
+    
+
+# Preallocates memory for better performances 
+# see https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html?highlight=device#pre-allocate-memory-in-case-of-variable-input-length
+def preallocate_memory(pathToTrainTxtFile: str, device, batch_size: int, hparams, model):
+    
+
+    print("\nPreallocating memory for better performance")
+    input_chars_max_length = findMaxLengthFromTrainingText(pathToTrainTxtFile)
+
+    
+    # 1. Generate a batch of input
+    texts = torch.randint(len(symbols), (batch_size, input_chars_max_length))  # replace 200 with desired max length
+    mels = torch.rand((batch_size, hparams.num_mels, hparams.max_mel_frames))
+    embeds = torch.rand((batch_size, hparams.speaker_embedding_size))
+    
+    # 2. Execute a forward and a backward pass with the generated batch
+    # Generate stop tokens for training
+    stop = torch.ones(batch_size, hparams.max_mel_frames)
+
+    texts = texts.to(device)
+    mels = mels.to(device)
+    embeds = embeds.to(device)
+    stop = stop.to(device)
+
+    # Forward pass
+    # Parallelize model onto GPUS using workaround due to python bug
+    if device.type == "cuda" and torch.cuda.device_count() > 1:
+        m1_hat, m2_hat, attention, stop_pred = data_parallel_workaround(model, texts,
+                                                                        mels, embeds)
+    else:
+        m1_hat, m2_hat, attention, stop_pred = model(texts, mels, embeds)
+
+    # Backward pass
+    m1_loss = F.mse_loss(m1_hat, mels) + F.l1_loss(m1_hat, mels)
+    m2_loss = F.mse_loss(m2_hat, mels)
+    stop_loss = F.binary_cross_entropy(stop_pred, stop)
+
+    loss = m1_loss + m2_loss + stop_loss
+
+    model.zero_grad(set_to_none=True)
+    loss.backward()
+        
+    # 3. Zero out gradients
+    model.zero_grad(set_to_none=True)
+
+
 def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
          backup_every: int, force_restart:bool, hparams):
 
@@ -82,6 +142,10 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
                      dropout=hparams.tts_dropout,
                      stop_threshold=hparams.tts_stop_threshold,
                      speaker_embedding_size=hparams.speaker_embedding_size).to(device)
+    
+    # Preallocate memory
+    preallocate_memory(metadata_fpath, device, 1, hparams, model)
+    print("Moving on to actual training")
 
     # Initialize the optimizer
     optimizer = optim.Adam(model.parameters())
@@ -184,7 +248,8 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
 
                 loss = m1_loss + m2_loss + stop_loss
 
-                optimizer.zero_grad()
+                # Following https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html?highlight=device#use-parameter-grad-none-instead-of-model-zero-grad-or-optimizer-zero-grad
+                optimizer.zero_grad(set_to_none=True)
                 loss.backward()
 
                 if hparams.tts_clip_grad_norm is not None:
