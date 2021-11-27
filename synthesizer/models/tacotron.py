@@ -10,6 +10,11 @@ from typing import Union
 from torch.utils.data import DataLoader
 import platform
 import torchvision 
+from synthesizer.utils.plot import plot_spectrogram
+from synthesizer.utils.text import sequence_to_text
+from vocoder.display import *
+from synthesizer import audio
+from datetime import datetime
 
 
 
@@ -334,7 +339,8 @@ class Decoder(pl.LightningModule):
 class Tacotron(pl.LightningModule):
     def __init__(self, embed_dims, num_chars, encoder_dims, decoder_dims, n_mels, 
                  fft_bins, postnet_dims, encoder_K, lstm_dims, postnet_K, num_highways,
-                 dropout, stop_threshold, speaker_embedding_size, syn_dir,hparams):
+                 dropout, stop_threshold, speaker_embedding_size, syn_dir,hparams, plot_dir, 
+                 mel_output_dir,wav_dir):
         super().__init__()
         self.n_mels = n_mels
         self.lstm_dims = lstm_dims
@@ -362,11 +368,14 @@ class Tacotron(pl.LightningModule):
         self.reduction_factor = hparams.tts_schedule[0][0]
         self.batch_size = hparams.tts_schedule[0][3]
         metadata_fpath = syn_dir.joinpath("train.txt")
-        mel_dir = syn_dir.joinpath("mels")
-        embed_dir = syn_dir.joinpath("embeds")
+        self.mel_dir = syn_dir.joinpath("mels")
+        self.embed_dir = syn_dir.joinpath("embeds")
+        self.plot_dir = plot_dir
+        self.mel_output_dir = mel_output_dir 
+        self.wav_dir = wav_dir
         # Lightning suggests to use a number of workers equal to the available CPUs
         self.num_workers = len(os.sched_getaffinity(0))
-        self.dataset = SynthesizerDataset(metadata_fpath, mel_dir, embed_dir, hparams)
+        self.dataset = SynthesizerDataset(metadata_fpath, self.mel_dir, self.embed_dir, hparams)
 
     @property
     def r(self):
@@ -536,6 +545,36 @@ class Tacotron(pl.LightningModule):
             print("Trainable Parameters: %.3fM" % parameters)
         return parameters
 
+    def np_now(self, x: torch.Tensor): return x.detach().numpy()
+
+
+    def time_string(self):
+        return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    def eval_model(self, attention, mel_prediction, target_spectrogram, input_seq, step,
+               plot_dir, mel_output_dir, wav_dir, sample_num, loss, hparams):
+        # Save some results for evaluation
+        attention_path = str(plot_dir.joinpath("attention_step_{}_sample_{}".format(step, sample_num)))
+        save_attention(attention, attention_path)
+
+        # save predicted mel spectrogram to disk (debug)
+        mel_output_fpath = mel_output_dir.joinpath("mel-prediction-step-{}_sample_{}.npy".format(step, sample_num))
+        np.save(str(mel_output_fpath), mel_prediction, allow_pickle=False)
+
+        # save griffin lim inverted wav for debug (mel -> wav)
+        wav = audio.inv_mel_spectrogram(mel_prediction.T, hparams)
+        wav_fpath = wav_dir.joinpath("step-{}-wave-from-mel_sample_{}.wav".format(step, sample_num))
+        audio.save_wav(wav, str(wav_fpath), sr=hparams.sample_rate)
+
+        # save real and predicted mel-spectrogram plot to disk (control purposes)
+        spec_fpath = plot_dir.joinpath("step-{}-mel-spectrogram_sample_{}.png".format(step, sample_num))
+        title_str = "{}, {}, step={}, loss={:.5f}".format("Tacotron", self.time_string(), step, loss)
+        plot_spectrogram(mel_prediction, str(spec_fpath), title=title_str,
+                        target_spectrogram=target_spectrogram,
+                        max_len=target_spectrogram.size // hparams.num_mels)
+        print("Input at step {}: {}".format(step, sequence_to_text(input_seq)))
+
+
     # Lightning additions
 
     def training_step(self, batch, batch_idx):
@@ -553,7 +592,7 @@ class Tacotron(pl.LightningModule):
         # Backward pass
         m1_loss = F.mse_loss(m1_hat, mels) + F.l1_loss(m1_hat, mels)
         m2_loss = F.mse_loss(m2_hat, mels)
-        stop_loss = F.binary_cross_entropy_with_logits(stop_pred, stop)
+        stop_loss = F.binary_cross_entropy(stop_pred, stop)
 
         loss = m1_loss + m2_loss + stop_loss
 
@@ -580,6 +619,27 @@ class Tacotron(pl.LightningModule):
 
         val_loss = m1_loss + m2_loss + stop_loss
 
+        for sample_idx in range(self.hparams2.tts_eval_num_samples):
+                        # At most, generate samples equal to number in the batch
+                        if sample_idx + 1 <= len(texts):
+                            # Remove padding from mels using frame length in metadata
+                            mel_length = int(self.dataset.metadata[idx[sample_idx]][4])
+                            mel_prediction = self.np_now(m2_hat[sample_idx]).T[:mel_length]
+                            target_spectrogram = self.np_now(mels[sample_idx]).T[:mel_length]
+                            attention_len = mel_length // self.r
+
+                            self.eval_model(attention=self.np_now(attention[sample_idx][:, :attention_len]),
+                                       mel_prediction=mel_prediction,
+                                       target_spectrogram=target_spectrogram,
+                                       input_seq=self.np_now(texts[sample_idx]),
+                                       step=self.global_step,
+                                       plot_dir=self.plot_dir,
+                                       mel_output_dir=self.mel_output_dir,
+                                       wav_dir=self.wav_dir,
+                                       sample_num=sample_idx + 1,
+                                       loss=val_loss,
+                                       hparams=self.hparams2)
+
         return {'val_loss' : val_loss, 'm1_hat' : m1_hat, 'm2_hat' : m2_hat}
 
     def configure_optimizers(self):
@@ -603,7 +663,8 @@ class Tacotron(pl.LightningModule):
                             num_workers=self.num_workers if platform.system() != "Windows" else 0,
                             pin_memory=True)
 
-        return val_loader    
+        return val_loader   
+         
 
     def validation_epoch_end(self, val_step_outputs):
     
@@ -617,3 +678,5 @@ class Tacotron(pl.LightningModule):
 
         log = {'avg_val_loss' : val_loss}
         return {'log': log, 'val_loss' : log}
+
+    
