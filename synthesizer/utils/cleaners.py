@@ -116,7 +116,7 @@ def english_cleaners(text):
 
 def french_cleaners(text):
     """Pipeline for French text. """
-    text = expand_abbreviations(text, lang="fr")
+    #text = expand_abbreviations(text, lang="fr")
     text = lowercase(text)
     text = replace_symbols(text, lang="fr")
     text = remove_aux_symbols(text)
