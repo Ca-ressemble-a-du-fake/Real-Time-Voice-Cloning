@@ -2,6 +2,8 @@ from synthesizer.hparams import hparams
 from synthesizer.train import train
 from utils.argutils import print_args
 import argparse
+import pytorch_lightning as pl
+
 
 
 if __name__ == "__main__":
