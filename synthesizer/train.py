@@ -29,7 +29,7 @@ def time_string():
 
 
 def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
-         backup_every: int, force_restart:bool, hparams):
+         backup_every: int, force_restart:bool, hparams, trainer_args):
 
     syn_dir = Path(syn_dir)
     models_dir = Path(models_dir)
@@ -109,13 +109,12 @@ def train(run_id: str, syn_dir: str, models_dir: str, save_every: int,
 
 
 
-    # Lightning additions
-    trainer = pl.Trainer(default_root_dir=model_dir, 
-    gpus=1, 
-    precision=16,
-    #fast_dev_run=True, 
-    #log_every_n_steps=1
-                        )
+     # Lightning additions
+    
+    # We change some arg values to take into account the ones passed in for the original RTVC project (without PL)
+    trainer_args.default_root_dir=model_dir
+
+    trainer = pl.Trainer.from_argparse_args(trainer_args)
     
     trainer.fit(model)
 
