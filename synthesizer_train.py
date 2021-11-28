@@ -31,5 +31,12 @@ if __name__ == "__main__":
 
     args.hparams = hparams.parse(args.hparams)
 
+    # Lightning additions
+    # We only take into account the arguments for Lightning
+    parser_pl = argparse.ArgumentParser()
+    parser_pl = pl.Trainer.add_argparse_args(parser_pl)
+    args_pl, _ = parser_pl.parse_known_args()
+
+
     # Run the training
-    train(**vars(args))
+    train(**vars(args), trainer_args=args_pl)
