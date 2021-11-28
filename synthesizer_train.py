@@ -26,7 +26,8 @@ if __name__ == "__main__":
     parser.add_argument("--hparams", default="",
                         help="Hyperparameter overrides as a comma-separated list of name=value "
 							 "pairs")
-    args = parser.parse_args()
+    # First we process the regular arguments
+    args, _ = parser.parse_known_args()
     print_args(args, parser)
 
     args.hparams = hparams.parse(args.hparams)
