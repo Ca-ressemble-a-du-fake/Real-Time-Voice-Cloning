@@ -367,6 +367,8 @@ class Tacotron(pl.LightningModule):
         self.hparams2 = hparams
         self.reduction_factor = hparams.tts_schedule[0][0]
         self.batch_size = hparams.tts_schedule[0][3]
+        # lr is needed for auto lr find in Lightning
+        self.learning_rate = hparams.tts_schedule[0][1]
         metadata_fpath = syn_dir.joinpath("train.txt")
         self.mel_dir = syn_dir.joinpath("mels")
         self.embed_dir = syn_dir.joinpath("embeds")
@@ -643,7 +645,7 @@ class Tacotron(pl.LightningModule):
         return {'val_loss' : val_loss, 'm1_hat' : m1_hat, 'm2_hat' : m2_hat}
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters())
+        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
 
     def train_dataloader(self):
         
