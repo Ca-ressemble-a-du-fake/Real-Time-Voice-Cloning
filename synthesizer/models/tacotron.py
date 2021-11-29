@@ -644,7 +644,7 @@ class Tacotron(pl.LightningModule):
 
         return {'val_loss' : val_loss, 'm1_hat' : m1_hat, 'm2_hat' : m2_hat}
 
-     def configure_optimizers(self):
+    def configure_optimizers(self):
 
       optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
       scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', verbose=True)
