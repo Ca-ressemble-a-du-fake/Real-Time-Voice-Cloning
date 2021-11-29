@@ -2,6 +2,8 @@ from synthesizer.hparams import hparams
 from synthesizer.train import train
 from utils.argutils import print_args
 import argparse
+import pytorch_lightning as pl
+
 
 
 if __name__ == "__main__":
@@ -26,10 +28,18 @@ if __name__ == "__main__":
     parser.add_argument("--hparams", default="",
                         help="Hyperparameter overrides as a comma-separated list of name=value "
 							 "pairs")
-    args = parser.parse_args()
+    # First we process the regular arguments
+    args, _ = parser.parse_known_args()
     print_args(args, parser)
 
     args.hparams = hparams.parse(args.hparams)
 
+    # Lightning additions
+    # We only take into account the arguments for Lightning
+    parser_pl = argparse.ArgumentParser()
+    parser_pl = pl.Trainer.add_argparse_args(parser_pl)
+    args_pl, _ = parser_pl.parse_known_args()
+
+
     # Run the training
-    train(**vars(args))
+    train(**vars(args), trainer_args=args_pl)
